@@ -23,20 +23,35 @@ $ make logging
 g++ -g logging.cc -o logging
 $ ./logging
 Usage: ./logging <example>
-Demonstration of logging messages before a crash. The examples inlucde:
-  stdout - Log messages to standard output
-  stderr - Log messages to standard error
+Demonstration of logging messages before a crash. The examples include:
+  stdout - Log a message to standard output
+  stderr - Log a message to standard error
+  stdout-newline - Log a message with a newline to stdout
   stdout-flush - Flush standard output after logging a message
+  stdout-large - Log a large message to standard output
 $ ./logging stdout
 Segmentation fault (core dumped)
 $ ./logging stderr
 Log before crashSegmentation fault (core dumped)
+$ ./logging stdout-newline
+Log before crash
+Segmentation fault (core dumped)
 $ ./logging stdout-flush
 Log before crashSegmentation fault (core dumped)
+$ ./logging stdout-large
+Log before crash  0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 ...
+9835 9836 9837 9838 9839 9840 9841 9842 9843 Segmentation fault (core dumped)
 ```
 
-Notice how message logged to standard output can be lost because - by default -
-stdout buffers output messages before flushing them.
+Messages logged to standard output are lost if the program crashes before they
+are flushed. Standard output is flushed when the output contains a newline, the
+output buffer fills up, or the application calls flush. In the first example, a
+small message without a newline is logged to stdout before the crash and the
+output is lost. In the last example a large message containing 0 1 2, ... 9999
+is logged to stdout. The beginning of the message gets flushed because it
+filled up the output buffer. The end of the message partially refilled the
+output buffer and is lost because the partially full buffer is not flushed
+before the crash.
 
 ### Cursed Binary Demo
 

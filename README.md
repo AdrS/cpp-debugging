@@ -1,4 +1,4 @@
-# C++ Debugging Guide
+# C++ Debugging
 
 Examples of common C++ errors and how to debug and fix them. This repository
 includes source code for a "cursed" binary with examples of common C++ coding
@@ -10,7 +10,7 @@ and fixing each bug.
 Clone the repository
 
 ```
-git clone TODO
+git clone https://github.com/adrs/cpp-debugging.git
 ```
 
 ### Logging Demo
@@ -56,32 +56,63 @@ before the crash.
 ### Cursed Binary Demo
 
 This demo shows examples of common errors causing programs to crash. Look at
-the comments in `cursed_main.cc` for descriptions about the root cause of each
+the comments in `cursed.cc` for descriptions about the root cause of each
 error and fixes.
 
+Compile the binary. Notice some of the examples trigger compiler warnings.
 ```
-$ make
-g++ -g cursed_main.cc -o cursed_binary
+$ make cursed
+g++ -g cursed.cc -o cursed
+cursed.cc: In function ‘const int& ReturnReferenceToLocalVariableImpl()’:
+cursed.cc:126:9: warning: reference to local variable ‘a’ returned [-Wreturn-local-addr]
+  126 |  return a;
+      |         ^
+cursed.cc:123:6: note: declared here
+  123 |  int a = 7;
+      |      ^
+cursed.cc: In function ‘int* ReturnPointerToLocalVariableImpl()’:
+cursed.cc:140:9: warning: address of local variable ‘a’ returned [-Wreturn-local-addr]
+  140 |  return &a;
+      |         ^~
+cursed.cc:137:6: note: declared here
+  137 |  int a = 7;
+      |      ^
 ```
 
-By default the cursed binary prints a list of the examples to try.
+
+Run the `cursed` binary without arguments to see a list of the examples.
 
 ```
-$ ./cursed_binary
-Usage: ./cursed_binary <example name>
+$ ./cursed
+Usage: ./cursed <example name>
 
 Runs code with examples of common bugs.
-Null Pointer Examples:
+Segfaults (Null Pointer) Examples:
   dereference-null-pointer - Attempt to read a value from a null pointer
   write-null-pointer - Attempt to assign a value to a null pointer
   call-null-pointer - Attempt to call a null function pointer
-  ...
+Segfaults Examples:
+  index-out-of-bounds - Access an array element past the end of the array
+  index-out-of-bounds-assignment - Attempt to assign a value to an array index past the end of the array
+  resize-invalidates-iterators - Access vector elements through an iterator that is invalid because the vector was resized
+  resize-invalidates-pointers - Access pointers to vector elements that are invalid after the vector is resized
+  return-reference-to-local - Returns a reference to a local variable that goes out of scope
+  return-pointer-to-local - Returns a pointer to a local variable that goes out of scope
+  lambda-capture-out-of-scope - Lambda captures variables that go out of scope
+Segfaults (Stack overflow) Examples:
+  unbounded-recursion - Overflow the stack with infinite recursion
+  deep-recursion - Overflow the stack with deep recursion
+  large-object-on-stack - Overflow the stack with a large local variable
+Aborts Examples:
+  assert-failure - Program terminates due to false assert condition
+  oom - Program runs out of memory
 ```
 
-Pass the name of an example to run.
+Run the `cursed` binary with the name of an example to see how the program
+crashes.
 
 ```
-$ ./cursed_binary dereference-null-pointer
+$ ./cursed dereference-null-pointer
 Segmentation fault (core dumped)
 $ echo $?
 139
@@ -90,14 +121,13 @@ $ echo $?
 Run an example in a debugger to see more details.
 
 ```
-$ gdb -q --ex=run --args ./cursed_binary dereference-null-pointer
-Reading symbols from ./cursed_binary...
-Starting program: /home/dev/Documents/cpp-debugging-examples/cursed_binary dereference-null-pointer
+$ gdb -q --ex=run --args ./cursed dereference-null-pointer
+Reading symbols from ./cursed...
+Starting program: /home/dev/Documents/cpp-debugging/cursed dereference-null-pointer
 
 Program received signal SIGSEGV, Segmentation fault.
-0x000055555555531d in DereferenceNullPointer () at cursed_main.cc:9
-9               int value = *ptr;
+0x000055555555543d in DereferenceNullPointer () at cursed.cc:16
+16              int value = *ptr;
 (gdb) p ptr
 $1 = (int *) 0x0
-...
 ```

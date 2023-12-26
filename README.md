@@ -13,7 +13,37 @@ Clone the repository
 git clone TODO
 ```
 
-Compile and run on a Linux instance
+### Logging Demo
+
+This demo shows how log messages are lost during a crash if they are not
+flushed.
+
+```
+$ make logging
+g++ -g logging.cc -o logging
+$ ./logging
+Usage: ./logging <example>
+Demonstration of logging messages before a crash. The examples inlucde:
+  stdout - Log messages to standard output
+  stderr - Log messages to standard error
+  stdout-flush - Flush standard output after logging a message
+$ ./logging stdout
+Segmentation fault (core dumped)
+$ ./logging stderr
+Log before crashSegmentation fault (core dumped)
+$ ./logging stdout-flush
+Log before crashSegmentation fault (core dumped)
+```
+
+Notice how message logged to standard output can be lost because - by default -
+stdout buffers output messages before flushing them.
+
+### Cursed Binary Demo
+
+This demo shows examples of common errors causing programs to crash. Look at
+the comments in `cursed_main.cc` for descriptions about the root cause of each
+error and fixes.
+
 ```
 $ make
 g++ -g cursed_main.cc -o cursed_binary
@@ -33,7 +63,7 @@ Null Pointer Examples:
   ...
 ```
 
-Pass the name of an example to run
+Pass the name of an example to run.
 
 ```
 $ ./cursed_binary dereference-null-pointer
@@ -42,7 +72,7 @@ $ echo $?
 139
 ```
 
-Run an example in a debugger
+Run an example in a debugger to see more details.
 
 ```
 $ gdb -q --ex=run --args ./cursed_binary dereference-null-pointer
@@ -55,8 +85,4 @@ Program received signal SIGSEGV, Segmentation fault.
 (gdb) p ptr
 $1 = (int *) 0x0
 ...
-```
-
-```
-Program received signal SIGSEGV, Segmentation fault.
 ```

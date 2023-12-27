@@ -367,30 +367,59 @@ void AssertFailureFix() {
 
 // OOM program
 ////////////////////////////////////////////////////////////////////////////////
-void OutOfMemory() {
-	// bad alloc
-
-    // The virtual address space is limited to 4MiB
+void SetVirtualMemorySizeLimit(int size) {
 	struct rlimit limit;
-	limit.rlim_cur = 1<<22; // 4 MiB
-	limit.rlim_max = 1<<22; // 4 MiB
+	limit.rlim_cur = size;
+	limit.rlim_max = size;
 	int error = setrlimit(RLIMIT_AS, &limit);
 	if (error != 0) {
 		std::cerr << "Could not set memory size limit: " << strerror(errno);
 		exit(1);
 	}
+}
+
+void OutOfMemory() {
+	SetVirtualMemorySizeLimit(1<<22); // 4 MiB
 	// Root cause: Allocating more memory than the resource limit.
 	for (int i = 0; i < 1000; i++) {
 		int *p = new int[1<<20];
 	}
 }
 
-// TODO: oom from malloc
-
 // Fixes:
 // 1) Decrease the peak resource usage. In particular look for memory leaks or
 //    or objects that can be deallocated sooner.
 // 2) Increase the resource limit.
+// 3) Catch the exception to avoid crashing.
+void OutOfMemoryFix3() {
+	SetVirtualMemorySizeLimit(1<<22); // 4 MiB
+	for (int i = 0; i < 1000; i++) {
+		try {
+			int *p = new int[1<<20];
+		} catch(std::bad_alloc& e) {
+			std::cerr << "Bad alloc exception\n";
+			break;
+		}
+	}
+}
+// 4) Use malloc
+void OutOfMemoryFix4() {
+	SetVirtualMemorySizeLimit(1<<22); // 4 MiB
+	for (int i = 0; i < 1000; i++) {
+		int *p = (int*)malloc(sizeof(int)*(1<<20));
+		if (p == nullptr) {
+			std::cerr << "Malloc error: " << strerror(errno) << "\n";
+			break;
+		}
+	}
+}
+
+void CallUninitializedFunction() {
+	// Root cause: function object has not been initialized.
+	std::function<void()> f;
+	f();
+}
+
 
 // Segfault
 // - Use after free
@@ -399,14 +428,12 @@ void OutOfMemory() {
 // - Trying to execute non executable section
 
 // Invalid instruction
-// - Call uninitialized lambda
 // - Call method on deallocated object
 // - Call virtual method on deallocated object
 //
 // casting errors
 // other signals
 
-// OOM
 // Deadlock
 // Race condition
 
@@ -414,6 +441,7 @@ struct Example {
 	const char *name;
 	const char *description;
 	void (*run)();
+	// TODO: Include list of fixes
 };
 
 struct ExampleGroup {
@@ -514,6 +542,11 @@ const std::vector<ExampleGroup> example_groups = {
 				.name = "oom",
 				.description = "Program runs out of memory",
 				.run = OutOfMemory,
+			},
+			{
+				.name = "uninitialized-function",
+				.description = "Call a function that has not been initialized",
+				.run = CallUninitializedFunction,
 			},
 		},
 	},

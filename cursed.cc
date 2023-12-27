@@ -176,15 +176,17 @@ void ReturnLocalVariableFix2b() {
 	std::unique_ptr<int> a = ReturnLocalVariableFix2bImpl();
 }
 
-// TODO: This example does not crash, but still is incorrect.
 class LambdaCaptureImpl {
 public:
 	LambdaCaptureImpl() {
-		int a = 8;
-		f_ = [&]() {
+		std::vector<int> a = {1, 2, 3};
+		f_ = [&a]() {
 			// Root cause: The lambda captures a reference to a local variable
 			// that goes out of scope before the lambda is called.
-			 a = 123;
+			int s = 0;
+			for (int x : a) {
+				s += x;
+			}
 		};
 	}
 
@@ -203,9 +205,96 @@ void LambdaCapturesReferenceToLocalVariable() {
 
 // Fix:
 // 1. Capture by value to make a copy.
+class LambdaCaptureFix1Impl {
+public:
+	LambdaCaptureFix1Impl() {
+		std::vector<int> a = {1, 2, 3};
+		f_ = [a]() {
+			// Fix: Copy by value
+			int s = 0;
+			for (int x : a) {
+				s += x;
+			}
+		};
+	}
+
+	void CallLambda() {
+		f_();
+	}
+
+private:
+	std::function<void()> f_;
+};
+
+void LambdaCapturesFix1() {
+	LambdaCaptureFix1Impl c;
+	c.CallLambda();
+}
+
 // 2. Extend the lifetime of the variable by making it a member of the class
 //    or allocating it on the heap.
-// TODO:
+class LambdaCaptureFix2Impl {
+public:
+	LambdaCaptureFix2Impl() : a_({1,2, 3}) {
+		f_ = [this]() {
+			int s = 0;
+			for (int x : a_) {
+				s += x;
+			}
+		};
+	}
+
+	void CallLambda() {
+		f_();
+	}
+
+private:
+	// Fix: extend the variable lifetime by making it a member of the class.
+	std::vector<int> a_;
+	std::function<void()> f_;
+};
+
+void LambdaCapturesFix2() {
+	LambdaCaptureFix2Impl c;
+	c.CallLambda();
+}
+
+// Use after free
+class AbstractBaseClass {
+public:
+	virtual void PureVirtualMethod() = 0;
+};
+
+class Impl : public AbstractBaseClass {
+public:
+	void PureVirtualMethod() final {}
+};
+
+void UseAfterFreeVirtualMethod() {
+	AbstractBaseClass* p;
+	{
+		auto obj = std::make_unique<Impl>();
+		p = obj.get();
+		// Object goes out of scope.
+	}
+	p->PureVirtualMethod();
+}
+
+class NonAbstractClass {
+public:
+	void Method() {}
+};
+
+void UseAfterFreeNonVirtualMethod() {
+	NonAbstractClass* p;
+	{
+		auto obj = std::make_unique<NonAbstractClass>();
+		p = obj.get();
+		// Obj goes out of scope.
+	}
+	// TODO: Does not crash, but still is invalid
+	p->Method();
+}
 
 // Invalid references
 
@@ -483,6 +572,11 @@ const std::vector<ExampleGroup> example_groups = {
 				.description = "Attempt to assign a value to an array index past the end of the array",
 				.run = IndexOutOfBoundsAssignment,
 			},
+		},
+	},
+	{
+		.name = "Segfaults (Use after free)",
+		.examples = {
 			{
 				.name = "resize-invalidates-iterators",
 				.description = "Access vector elements through an iterator that is invalid because the vector was resized",
@@ -507,6 +601,11 @@ const std::vector<ExampleGroup> example_groups = {
 				.name = "lambda-capture-out-of-scope",
 				.description = "Lambda captures variables that go out of scope",
 				.run = LambdaCapturesReferenceToLocalVariable,
+			},
+			{
+				.name = "use-after-free-virtual-method",
+				.description = "Call a virtual method after destroying an object",
+				.run = UseAfterFreeVirtualMethod,
 			},
 		},
 	},
@@ -563,7 +662,6 @@ void usage(const char **argv) {
 	}
 	exit(1);
 }
-
 
 int main(const int argc, const char **argv) {
 	if (argc != 2) {

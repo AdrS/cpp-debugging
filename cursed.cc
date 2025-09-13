@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <vector>
 #include <string.h>
@@ -509,6 +510,22 @@ void CallUninitializedFunction() {
 	f();
 }
 
+// Division error (Floating Point Exceptions)
+void DivideByZero() {
+	int a = 1;
+	int b = 0;
+	int c = a/b;
+}
+
+void QuotientTooLarge() {
+	// The min value for an n-bit signed integer is -2^(n - 1) when using two's
+	// compliment. The max value is 2^(n - 1) - 1. This means the division
+	// overflows when dividing int min by -1. This causes a floating point
+	// exception and aborts the program.
+	int a = std::numeric_limits<int>::min();
+	int b = -1;
+	int c = a/b;
+}
 
 // Segfault
 // - Use after free
@@ -518,7 +535,6 @@ void CallUninitializedFunction() {
 
 // Invalid instruction
 // - Call method on deallocated object
-// - Call virtual method on deallocated object
 //
 // casting errors
 // other signals
@@ -646,6 +662,21 @@ const std::vector<ExampleGroup> example_groups = {
 				.name = "uninitialized-function",
 				.description = "Call a function that has not been initialized",
 				.run = CallUninitializedFunction,
+			},
+		},
+	},
+	{
+		.name = "Divide error (Floating point exception)",
+		.examples = {
+			{
+				.name = "divide-by-zero",
+				.description = "Dividing by zero aborts the program.",
+				.run = DivideByZero,
+			},
+			{
+				.name = "quotient-too-large",
+				.description = "The quotient is larger that the destination operand",
+				.run = QuotientTooLarge,
 			},
 		},
 	},

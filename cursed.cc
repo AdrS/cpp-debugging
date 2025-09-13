@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/resource.h>
 
 // Segfaults from dereferencing null pointers
@@ -305,6 +306,18 @@ void UseAfterFree() {
 	// use
 }
 
+void UnmappedPage() {
+	int length=1<<12;
+	void *addr = mmap(/*addr=*/nullptr, length, PROT_READ | PROT_WRITE,
+		MAP_ANONYMOUS | MAP_PRIVATE, /*fd=*/-1, /*offset=*/0);
+	assert(addr != MAP_FAILED);
+	int *a = (int*)addr;
+	*a = 123;
+	assert(munmap(addr, length) == 0);
+	// The page no longer exists.
+	int b = *a;
+}
+
 // Stack overflow
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -423,8 +436,35 @@ void LargeObjectFix2() {
 		std::cerr << "Could not increase stack size limit: " << strerror(errno);
 		exit(1);
 	}
-	// No that the stack is larger, calling the function is ok.
+	// Now that the stack is larger, calling the function is ok.
 	LargeObjectOnStack();
+}
+
+// Segfaults from page permission errors
+void WriteToReadOnlyPage() {
+	void *addr = mmap(/*addr=*/nullptr, /*length=*/1<<12, PROT_READ,
+		MAP_ANONYMOUS | MAP_PRIVATE, /*fd=*/-1, /*offset=*/0);
+	assert(addr != MAP_FAILED);
+	int *a = (int*)addr;
+	// Reading from the page is ok.
+	int b = *a + 1;
+	// Writing to the page is not allowed.
+	*a = b;
+}
+
+int foo(int a) {
+	return a + 1;
+}
+
+void CallNonExecutablePage() {
+	int length=1<<12;
+	void *addr = mmap(/*addr=*/nullptr, length,
+		PROT_READ | PROT_WRITE /*| PROT_EXEC*/,
+		MAP_ANONYMOUS | MAP_PRIVATE, /*fd=*/-1, /*offset=*/0);
+	assert(addr != MAP_FAILED);
+	memcpy(addr, (const void*)foo, length);
+	int (*f)(int a) = (int (*)(int))addr;
+	std::cout << f(7) << std::endl;
 }
 
 // Aborts
@@ -576,7 +616,7 @@ const std::vector<ExampleGroup> example_groups = {
 		},
 	},
 	{
-		.name = "Segfaults",
+		.name = "Segfaults (Index out of bounds)",
 		.examples = {
 			{
 				.name = "index-out-of-bounds",
@@ -623,6 +663,11 @@ const std::vector<ExampleGroup> example_groups = {
 				.description = "Call a virtual method after destroying an object",
 				.run = UseAfterFreeVirtualMethod,
 			},
+			{
+				.name = "unmapped-page",
+				.description = "Access an unmapped page.",
+				.run = UnmappedPage,
+			},
 		},
 	},
 	{
@@ -642,6 +687,21 @@ const std::vector<ExampleGroup> example_groups = {
 				.name = "large-object-on-stack",
 				.description = "Overflow the stack with a large local variable",
 				.run = LargeObjectOnStack,
+			},
+		},
+	},
+	{
+		.name = "Segfaults (Page Permissions)",
+		.examples = {
+			{
+				.name = "page-not-writable",
+				.description = "Attempts to modify a read-only page",
+				.run = WriteToReadOnlyPage,
+			},
+			{
+				.name = "page-not-executable",
+				.description = "Attempts jump to code from a non-executable page",
+				.run = CallNonExecutablePage,
 			},
 		},
 	},
